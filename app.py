@@ -6,6 +6,9 @@ from google import genai
 # ---------------- CONFIG ----------------
 POLLEN_LOW = 20
 POLLEN_HIGH = 40
+
+# Inventory will be provided by the user via the UI (session state / CSV upload)
+
 GOOG_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # ---------------- GEO ----------------
@@ -18,33 +21,40 @@ def geocode_location(query):
         "language": "en",
         "format": "json"
     }
+
     r = requests.get(url, params=params, timeout=10)
     r.raise_for_status()
     data = r.json()
+
     if "results" not in data:
         return None
-    res = data["results"][0]
-    return res["latitude"], res["longitude"], res["name"], res.get("country", "")
+
+    result = data["results"][0]
+    return result["latitude"], result["longitude"], result["name"], result.get("country", "")
 
 @st.cache_data(show_spinner=False)
 def reverse_geocode(lat, lon):
+    """Reverse geocode coordinates to get location name."""
     url = "https://geocoding-api.open-meteo.com/v1/reverse"
-    params = {"latitude": lat, "longitude": lon, "language": "en"}
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "language": "en"
+    }
     try:
         r = requests.get(url, params=params, timeout=10)
         r.raise_for_status()
         data = r.json()
-        if "results" in data and data["results"]:
-            res = data["results"][0]
-            city = res.get("name", "Unknown")
-            country = res.get("country", "")
+        if "results" in data and len(data["results"]) > 0:
+            result = data["results"][0]
+            city = result.get("name", "Unknown")
+            country = result.get("country", "")
             return f"{city}, {country}" if country else city
     except Exception:
         pass
     return f"{lat}, {lon}"
 
 # ---------------- DATA ----------------
-@st.cache_data(show_spinner=False)
 def get_pollen_data(lat, lon):
     url = "https://air-quality-api.open-meteo.com/v1/air-quality"
     params = {
@@ -68,7 +78,7 @@ def compute_strategy(pollen):
 
 def ai_explanation(pollen, aqi, decision):
     if not GOOG_API_KEY:
-        return None, "AI explanation unavailable (missing API key)."
+        return "AI explanation unavailable (missing API key)."
 
     try:
         client = genai.Client(api_key=GOOG_API_KEY)
@@ -89,13 +99,10 @@ def ai_explanation(pollen, aqi, decision):
             contents=prompt,
         )
 
-        return response.text.strip(), None
+        return response.text.strip()
 
     except Exception as e:
-        msg = str(e).lower()
-        if "quota" in msg or "resource_exhausted" in msg:
-            return None, "⚠️ AI quota has been reached. Please try again later."
-        return None, f"AI explanation failed: {e}"
+        return f"AI explanation failed: {e}"
 
 # ---------------- UI ----------------
 st.set_page_config(page_title="Cox PollenGuard", page_icon="🌤️")
@@ -103,9 +110,12 @@ st.set_page_config(page_title="Cox PollenGuard", page_icon="🌤️")
 st.title("🌤️ Cox Automotive: PollenGuard")
 st.markdown("**Purpose:** Optimize fleet wash scheduling across any location")
 
-# ---------- LOCATION ----------
+# 🔍 LOCATION SEARCH
 st.subheader("📍 Location")
-location_query = st.text_input("Search for a city, address, or ZIP code", value="30602")
+location_query = st.text_input(
+    "Search for a city, address, or ZIP code",
+    value="30602"
+)
 
 geo = geocode_location(location_query)
 if not geo:
@@ -115,77 +125,81 @@ if not geo:
 LAT, LON, place_name, country = geo
 st.caption(f"Using location: **{place_name}, {country}**")
 
-# ---------- INVENTORY INPUT ----------
+# INVENTORY INPUT SECTION
 st.divider()
 st.subheader("🧾 Inventory Input")
 
 if "inventory" not in st.session_state:
     st.session_state.inventory = []
 
-if "ai_result" not in st.session_state:
-    st.session_state.ai_result = None
-
-if "ai_error" not in st.session_state:
-    st.session_state.ai_error = None
-
 with st.expander("Add single vehicle manually"):
     with st.form("add_vehicle", clear_on_submit=True):
         make_in = st.text_input("Make")
         model_in = st.text_input("Model")
         color_in = st.text_input("Color")
-        parked_in = st.selectbox("Parked", ["Inside", "Outside"], index=1)
+        parked_in = st.selectbox("Parked", options=["Inside", "Outside"], index=1, key="parked_select")
         lat_in = st.text_input("Latitude (optional)")
         lon_in = st.text_input("Longitude (optional)")
-        submit_add = st.form_submit_button("Add to inventory")
-
-        if submit_add:
+        add_submit = st.form_submit_button("Add to inventory")
+        if add_submit:
             try:
-                lat_v = float(lat_in) if lat_in.strip() else None
-                lon_v = float(lon_in) if lon_in.strip() else None
+                lat_v = float(lat_in) if lat_in.strip() != "" else None
+                lon_v = float(lon_in) if lon_in.strip() != "" else None
             except Exception:
-                st.error("Latitude and Longitude must be numeric.")
-                lat_v, lon_v = None, None
+                st.error("Latitude and Longitude must be numeric or left blank.")
+                lat_v = None
+                lon_v = None
 
-            st.session_state.inventory.append({
-                "Make": make_in,
-                "Model": model_in,
-                "Color": color_in,
-                "Parked": parked_in,
+            item = {
+                "Make": make_in or "",
+                "Model": model_in or "",
+                "Color": color_in or "",
+                "Parked": parked_in or "",
                 "lat": lat_v,
                 "lon": lon_v,
-            })
-            st.success("Vehicle added.")
+            }
+            st.session_state.inventory.append(item)
+            st.success("Vehicle added to inventory.")
 
-st.markdown("**Or upload a CSV** (Make, Model, Color, Parked, lat, lon)")
+st.markdown("**Or upload a CSV** (columns: Make,Model,Color,Parked,lat,lon)")
 upload = st.file_uploader("Upload CSV", type=["csv"])
-if upload:
-    df_up = pd.read_csv(upload)
-    required = ["Make", "Model", "Color", "Parked", "lat", "lon"]
-    missing = [c for c in required if c not in df_up.columns]
-    if missing:
-        st.error(f"CSV missing columns: {', '.join(missing)}")
-    else:
-        for _, r in df_up.iterrows():
-            st.session_state.inventory.append({
-                "Make": str(r["Make"]),
-                "Model": str(r["Model"]),
-                "Color": str(r["Color"]),
-                "Parked": str(r["Parked"]),
-                "lat": float(r["lat"]) if pd.notna(r["lat"]) else None,
-                "lon": float(r["lon"]) if pd.notna(r["lon"]) else None,
-            })
-        st.success(f"Imported {len(df_up)} vehicles.")
+if upload is not None:
+    try:
+        uploaded_df = pd.read_csv(upload)
+        required = ["Make", "Model", "Color", "Parked", "lat", "lon"]
+        missing = [c for c in required if c not in uploaded_df.columns]
+        if missing:
+            st.error(f"CSV missing columns: {', '.join(missing)}")
+        else:
+            for _, r in uploaded_df.iterrows():
+                lat_v = float(r["lat"]) if pd.notna(r["lat"]) else None
+                lon_v = float(r["lon"]) if pd.notna(r["lon"]) else None
+                st.session_state.inventory.append({
+                    "Make": str(r.get("Make", "")),
+                    "Model": str(r.get("Model", "")),
+                    "Color": str(r.get("Color", "")),
+                    "Parked": str(r.get("Parked", "")),
+                    "lat": lat_v,
+                    "lon": lon_v,
+                })
+            st.success(f"Imported {len(uploaded_df)} rows into inventory.")
+    except Exception as e:
+        st.error(f"Failed to read CSV: {e}")
 
+# Show current inventory before submit
 if st.session_state.inventory:
-    preview = pd.DataFrame(st.session_state.inventory).drop(columns=["lat", "lon"], errors="ignore")
-    for col in preview.columns:
-        if preview[col].dtype == "object":
-            preview[col] = preview[col].str.capitalize()
-    st.dataframe(preview, use_container_width=True, hide_index=True)
+    st.write("**Current Inventory:**")
+    preview_df = pd.DataFrame(st.session_state.inventory)
+    if "lat" in preview_df.columns and "lon" in preview_df.columns:
+        preview_df = preview_df.drop(columns=[c for c in ["lat", "lon"] if c in preview_df.columns])
+    # Capitalize first letter of first word in each string column
+    for col in preview_df.columns:
+        if preview_df[col].dtype == 'object':
+            preview_df[col] = preview_df[col].apply(lambda x: x.capitalize() if isinstance(x, str) else x)
+    st.dataframe(preview_df, use_container_width=True, hide_index=True)
 
-# ---------- CONTROLS ----------
+# SUBMIT BUTTON
 st.divider()
-sim_mode = st.checkbox("⚠️ Simulate High Pollen (Demo)")
 submit_pressed = st.button("Generate Wash Recommendation", type="primary")
 
 # Simulate pollen checkbox (outside submit block so it persists)
@@ -205,12 +219,53 @@ if submit_pressed:
     if st.session_state.sim_mode:
         pollen = 85
 
+    color, decision, reason = compute_strategy(pollen)
+
+    # METRICS
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Pollen (PM10)", round(pollen, 1))
+    c2.metric("Air Quality Index", aqi)
+    c3.metric("Decision", decision)
+
+    st.divider()
+
+    #  DECISION
+    if color == "RED":
+        st.error(f"## {decision}\n{reason}")
+    elif color == "YELLOW":
+        st.warning(f"## {decision}\n{reason}")
+    else:
+        st.success(f"## {decision}\n{reason}")
+
+    #  AI
+    st.subheader("🤖 AI Explanation")
+    st.info(ai_explanation(pollen, aqi, decision))
+
+    st.divider()
+    
     inv_df = pd.DataFrame(st.session_state.inventory)
 
     if inv_df.empty:
         st.info("No inventory provided yet. Add items manually or upload a CSV.")
     else:
-        # Define action function first (before applying to df)
+        # Prepare map data: use vehicle-specific coords if both lat AND lon provided, else use default location
+        map_data = []
+        for _, row in inv_df.iterrows():
+            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
+                # Vehicle has both coordinates
+                map_data.append({"latitude": row["lat"], "longitude": row["lon"], "source": "vehicle", "id": row.get("Make", "")})
+            else:
+                # Use default location from top of page
+                map_data.append({"latitude": LAT, "longitude": LON, "source": "default", "id": row.get("Make", "")})
+        
+        map_df = pd.DataFrame(map_data)
+        
+        st.subheader("📍 Fleet Map")
+        if not map_df.empty:
+            st.map(map_df, latitude="latitude", longitude="longitude")
+        else:
+            st.info("No coordinates to display on the map.")
+
         def action(row):
             parked = row.get("Parked", "") or ""
             
@@ -243,73 +298,8 @@ if submit_pressed:
         inv_df["Action"] = inv_df.apply(action, axis=1)
         inv_df["Location"] = inv_df.apply(get_location, axis=1)
 
-        # Determine overall decision based on all vehicle actions
-        wash_vehicles = (inv_df["Action"] == "🟢 WASH").sum()
-        hold_vehicles = (inv_df["Action"] != "🟢 WASH").sum()
-        total_vehicles = len(inv_df)
-
-        # Override the overall decision if there's a mix
-        if wash_vehicles > 0 and hold_vehicles > 0:
-            # Mixed state: some wash, some hold
-            color = "ORANGE"
-            wash_list = inv_df[inv_df["Action"] == "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
-            hold_list = inv_df[inv_df["Action"] != "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
-            decision = "MIXED FLEET"
-            reason = f"Wash: {', '.join(wash_list)}\n\nHold/Do Not Wash: {', '.join(hold_list)}"
-        elif wash_vehicles == total_vehicles:
-            # All vehicles can wash
-            color = "GREEN"
-            decision = "WASH ALL"
-            reason = "All vehicles are clear to wash."
-        else:
-            # All vehicles on hold
-            color = "RED"
-            decision = "HOLD WASH"
-            reason = "One or more vehicles require washing to be held."
-
-        # METRICS
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Pollen (PM10)", round(pollen, 1))
-        c2.metric("Air Quality Index", aqi)
-        c3.metric("Decision", decision)
-
-        st.divider()
-
-        #  DECISION
-        if color == "RED":
-            st.error(f"## {decision}\n{reason}")
-        elif color == "ORANGE":
-            st.warning(f"## {decision}\n{reason}")
-        else:
-            st.success(f"## {decision}\n{reason}")
-
-        #  AI
-        st.subheader("🤖 AI Explanation")
-        st.info(ai_explanation(pollen, aqi, decision))
-
-        st.divider()
-
-        st.divider()
-        
-        # Prepare map data: use vehicle-specific coords if both lat AND lon provided, else use default location
-        map_data = []
-        for _, row in inv_df.iterrows():
-            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
-                # Vehicle has both coordinates
-                map_data.append({"latitude": row["lat"], "longitude": row["lon"], "source": "vehicle", "id": row.get("Make", "")})
-            else:
-                # Use default location from top of page
-                map_data.append({"latitude": LAT, "longitude": LON, "source": "default", "id": row.get("Make", "")})
-        
-        map_df = pd.DataFrame(map_data)
-        
-        st.subheader("📍 Fleet Map")
-        if not map_df.empty:
-            st.map(map_df, latitude="latitude", longitude="longitude")
-        else:
-            st.info("No coordinates to display on the map.")
-
         st.subheader("📋 Fleet Action Plan")
+        disp = inv_df.copy()
         if "lat" in disp.columns and "lon" in disp.columns:
             disp = disp.drop(columns=[c for c in ["lat", "lon"] if c in disp.columns])
         
@@ -336,5 +326,5 @@ if submit_pressed:
                 st.session_state.inventory.pop(i)
                 st.rerun()
 
-            saved = inv_df[inv_df["Action"] != "🟢 WASH"].shape[0] * 40
-            st.info(f"💧 Estimated water saved today: **{saved} gallons**")
+        saved = inv_df[inv_df["Action"] != "🟢 WASH"].shape[0] * 40
+        st.info(f"💧 Estimated water saved today: **{saved} gallons**")
