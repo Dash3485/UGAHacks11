@@ -219,53 +219,12 @@ if submit_pressed:
     if st.session_state.sim_mode:
         pollen = 85
 
-    color, decision, reason = compute_strategy(pollen)
-
-    # METRICS
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Pollen (PM10)", round(pollen, 1))
-    c2.metric("Air Quality Index", aqi)
-    c3.metric("Decision", decision)
-
-    st.divider()
-
-    #  DECISION
-    if color == "RED":
-        st.error(f"## {decision}\n{reason}")
-    elif color == "YELLOW":
-        st.warning(f"## {decision}\n{reason}")
-    else:
-        st.success(f"## {decision}\n{reason}")
-
-    #  AI
-    st.subheader("🤖 AI Explanation")
-    st.info(ai_explanation(pollen, aqi, decision))
-
-    st.divider()
-    
     inv_df = pd.DataFrame(st.session_state.inventory)
 
     if inv_df.empty:
         st.info("No inventory provided yet. Add items manually or upload a CSV.")
     else:
-        # Prepare map data: use vehicle-specific coords if both lat AND lon provided, else use default location
-        map_data = []
-        for _, row in inv_df.iterrows():
-            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
-                # Vehicle has both coordinates
-                map_data.append({"latitude": row["lat"], "longitude": row["lon"], "source": "vehicle", "id": row.get("Make", "")})
-            else:
-                # Use default location from top of page
-                map_data.append({"latitude": LAT, "longitude": LON, "source": "default", "id": row.get("Make", "")})
-        
-        map_df = pd.DataFrame(map_data)
-        
-        st.subheader("📍 Fleet Map")
-        if not map_df.empty:
-            st.map(map_df, latitude="latitude", longitude="longitude")
-        else:
-            st.info("No coordinates to display on the map.")
-
+        # Define action function first (before applying to df)
         def action(row):
             parked = row.get("Parked", "") or ""
             
@@ -298,8 +257,73 @@ if submit_pressed:
         inv_df["Action"] = inv_df.apply(action, axis=1)
         inv_df["Location"] = inv_df.apply(get_location, axis=1)
 
+        # Determine overall decision based on all vehicle actions
+        wash_vehicles = (inv_df["Action"] == "🟢 WASH").sum()
+        hold_vehicles = (inv_df["Action"] != "🟢 WASH").sum()
+        total_vehicles = len(inv_df)
+
+        # Override the overall decision if there's a mix
+        if wash_vehicles > 0 and hold_vehicles > 0:
+            # Mixed state: some wash, some hold
+            color = "ORANGE"
+            wash_list = inv_df[inv_df["Action"] == "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
+            hold_list = inv_df[inv_df["Action"] != "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
+            decision = "MIXED FLEET"
+            reason = f"Wash: {', '.join(wash_list)}\n\nHold/Do Not Wash: {', '.join(hold_list)}"
+        elif wash_vehicles == total_vehicles:
+            # All vehicles can wash
+            color = "GREEN"
+            decision = "WASH ALL"
+            reason = "All vehicles are clear to wash."
+        else:
+            # All vehicles on hold
+            color = "RED"
+            decision = "HOLD WASH"
+            reason = "One or more vehicles require washing to be held."
+
+        # METRICS
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Pollen (PM10)", round(pollen, 1))
+        c2.metric("Air Quality Index", aqi)
+        c3.metric("Decision", decision)
+
+        st.divider()
+
+        #  DECISION
+        if color == "RED":
+            st.error(f"## {decision}\n{reason}")
+        elif color == "ORANGE":
+            st.warning(f"## {decision}\n{reason}")
+        else:
+            st.success(f"## {decision}\n{reason}")
+
+        #  AI
+        st.subheader("🤖 AI Explanation")
+        st.info(ai_explanation(pollen, aqi, decision))
+
+        st.divider()
+
+        st.divider()
+        
+        # Prepare map data: use vehicle-specific coords if both lat AND lon provided, else use default location
+        map_data = []
+        for _, row in inv_df.iterrows():
+            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
+                # Vehicle has both coordinates
+                map_data.append({"latitude": row["lat"], "longitude": row["lon"], "source": "vehicle", "id": row.get("Make", "")})
+            else:
+                # Use default location from top of page
+                map_data.append({"latitude": LAT, "longitude": LON, "source": "default", "id": row.get("Make", "")})
+        
+        map_df = pd.DataFrame(map_data)
+        
+        st.subheader("📍 Fleet Map")
+        if not map_df.empty:
+            st.map(map_df, latitude="latitude", longitude="longitude")
+        else:
+            st.info("No coordinates to display on the map.")
+
         st.subheader("📋 Fleet Action Plan")
-        disp = inv_df.copy()
         if "lat" in disp.columns and "lon" in disp.columns:
             disp = disp.drop(columns=[c for c in ["lat", "lon"] if c in disp.columns])
         
