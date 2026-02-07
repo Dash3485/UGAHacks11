@@ -103,7 +103,7 @@ if not geo:
 LAT, LON, place_name, country = geo
 st.caption(f"Using location: **{place_name}, {country}**")
 
-# 🌦 DATA
+#  DATA
 data = get_pollen_data(LAT, LON)
 current = data["current"]
 
@@ -116,7 +116,7 @@ if sim_mode:
 
 color, decision, reason = compute_strategy(pollen)
 
-# 📊 METRICS
+# METRICS
 c1, c2, c3 = st.columns(3)
 c1.metric("Pollen (PM10)", round(pollen, 1))
 c2.metric("Air Quality Index", aqi)
@@ -124,7 +124,7 @@ c3.metric("Decision", decision)
 
 st.divider()
 
-# 🚦 DECISION
+#  DECISION
 if color == "RED":
     st.error(f"## {decision}\n{reason}")
 elif color == "YELLOW":
@@ -132,7 +132,7 @@ elif color == "YELLOW":
 else:
     st.success(f"## {decision}\n{reason}")
 
-# 🤖 AI
+#  AI
 st.subheader("🤖 AI Explanation")
 st.info(ai_explanation(pollen, aqi, decision))
 
