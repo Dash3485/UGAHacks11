@@ -229,6 +229,9 @@ if st.session_state.inventory:
 st.divider()
 submit_pressed = st.button("Generate Wash Recommendation", type="primary")
 
+# Simulate high pollen toggle (outside submit block so it persists)
+sim_mode = st.checkbox("⚠️ Simulate High Pollen (Demo)")
+
 if submit_pressed:
     #  DATA
     data = get_pollen_data(LAT, LON)
@@ -236,8 +239,6 @@ if submit_pressed:
 
     pollen = current.get("pm10", 0)
     aqi = current.get("us_aqi", 0)
-
-    sim_mode = st.checkbox("⚠️ Simulate High Pollen (Demo)")
     if sim_mode:
         pollen = 85
 
