@@ -92,7 +92,7 @@ st.markdown("**Purpose:** Optimize fleet wash scheduling across any location")
 st.subheader("📍 Location")
 location_query = st.text_input(
     "Search for a city, address, or ZIP code",
-    value="Manheim Atlanta"
+    value="30602"
 )
 
 geo = geocode_location(location_query)
