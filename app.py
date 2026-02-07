@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
-import google.generativeai as genai
-import os
+from google import genai
 
 # ---------------- CONFIG ----------------
 LAT = 33.66
@@ -19,7 +18,7 @@ INVENTORY_DATA = [
     {"ID": "VH-005", "Model": "Rivian R1T", "Color": "Green", "Parked": "Outdoor - Row D", "lat": 33.6620, "lon": -84.5320},
 ]
 
-GOOG_API_KEY = st.secrets["GOOGLE_API_KEY"]
+GOOG_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
 # ---------------- DATA ----------------
 def get_pollen_data():
@@ -52,18 +51,25 @@ def ai_explanation(pollen, aqi, decision):
         return "AI explanation unavailable (missing API key)."
 
     try:
-        genai.configure(api_key=GOOG_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        client = genai.Client(api_key=GOOG_API_KEY)
 
         prompt = f"""
-        Explain this fleet decision in 2–3 sentences for management.
+        You are a fleet operations analyst.
+        Explain this decision clearly for a non-technical manager.
 
         Pollen (PM10): {pollen}
-        AQI: {aqi}
+        Air Quality Index: {aqi}
         Decision: {decision}
+
+        Respond in 2–3 sentences.
         """
 
-        return model.generate_content(prompt).text.strip()
+        response = client.models.generate_content(
+            model="models/gemini-flash-latest",  # ✅ CONFIRMED AVAILABLE
+            contents=prompt,
+        )
+
+        return response.text.strip()
 
     except Exception as e:
         return f"AI explanation failed: {e}"
@@ -75,7 +81,6 @@ st.title("🌤️ Cox Automotive: PollenGuard")
 st.markdown("**Location:** Manheim Atlanta | **Purpose:** Optimize fleet wash scheduling")
 
 data = get_pollen_data()
-
 if not data:
     st.stop()
 
@@ -128,7 +133,7 @@ df["Action"] = df.apply(action, axis=1)
 
 st.divider()
 st.subheader("📋 Fleet Action Plan")
-st.dataframe(df.drop(columns=["lat", "lon"]), use_container_width=True)
+st.dataframe(df.drop(columns=["lat", "lon"]), width="stretch")
 
 # Sustainability
 saved = df[df["Action"] != "🟢 WASH"].shape[0] * 40
