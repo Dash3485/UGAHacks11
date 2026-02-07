@@ -44,12 +44,16 @@ An integrated AI explanation layer translates environmental data into clear, non
 
 ---
 
-##  Tech Stack
+##  Tools used
 - **Frontend / App Framework:** Streamlit
-- **Data:** Open-Meteo Air Quality API
+- **Data:** Open-Meteo Air Quality API, Pandas
 - **AI:** Google Gemini (`gemini-flash-latest`)
 - **Mapping:** Streamlit map visualization
 - **Language:** Python 3.9+
+
+--- 
+##  Problems that group ran into 
+A problem that we ran into was having the AI give reasonable advice for.
 
 ---
 
