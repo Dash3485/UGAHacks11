@@ -131,6 +131,9 @@ def ai_explanation(pollen, aqi, decision):
 # ---------------- UI ----------------
 st.set_page_config(page_title="Cox PollenGuard", page_icon="🌤️")
 
+with open(".streamlit/style.css") as f:
+    st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
+
 st.title("🌤️ Cox Automotive: PollenGuard")
 st.markdown("**Purpose:** Optimize fleet wash scheduling across any location")
 
