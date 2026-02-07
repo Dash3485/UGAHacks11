@@ -202,14 +202,24 @@ inv_df = pd.DataFrame(st.session_state.inventory)
 if inv_df.empty:
     st.info("No inventory provided yet. Add items manually or upload a CSV.")
 else:
-    # Map: show only rows with valid coordinates
-    coords_df = inv_df.dropna(subset=["lat", "lon"]) if not inv_df.empty else pd.DataFrame()
+    # Prepare map data: use vehicle-specific coords if both lat AND lon provided, else use default location
+    map_data = []
+    for _, row in inv_df.iterrows():
+        if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
+            # Vehicle has both coordinates
+            map_data.append({"latitude": row["lat"], "longitude": row["lon"], "source": "vehicle", "id": row["ID"]})
+        else:
+            # Use default location from top of page
+            map_data.append({"latitude": LAT, "longitude": LON, "source": "default", "id": row["ID"]})
+    
+    map_df = pd.DataFrame(map_data)
+    
     st.divider()
     st.subheader("📍 Fleet Map")
-    if not coords_df.empty:
-        st.map(coords_df, latitude="lat", longitude="lon")
+    if not map_df.empty:
+        st.map(map_df, latitude="latitude", longitude="longitude")
     else:
-        st.info("No valid coordinates to display on the map.")
+        st.info("No coordinates to display on the map.")
 
     def action(row):
         parked = row.get("Parked", "") or ""
@@ -219,7 +229,15 @@ else:
             return "🟡 HOLD"
         return "🟢 WASH"
 
+    def get_location(row):
+        # If both lat and lon are provided, show "Custom"; otherwise show the default location
+        if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
+            return "Custom"
+        else:
+            return place_name
+
     inv_df["Action"] = inv_df.apply(action, axis=1)
+    inv_df["Location"] = inv_df.apply(get_location, axis=1)
 
     st.divider()
     st.subheader("📋 Fleet Action Plan")
