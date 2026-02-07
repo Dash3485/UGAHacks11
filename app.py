@@ -11,13 +11,7 @@ LON = -84.53
 POLLEN_LOW = 20
 POLLEN_HIGH = 40
 
-INVENTORY_DATA = [
-    {"ID": "VH-001", "Model": "Ford F-150", "Color": "Black", "Parked": "Outdoor - Row A", "lat": 33.6612, "lon": -84.5305},
-    {"ID": "VH-002", "Model": "Tesla Model 3", "Color": "White", "Parked": "Indoor - Hall B", "lat": 33.6605, "lon": -84.5310},
-    {"ID": "VH-003", "Model": "Toyota Camry", "Color": "Blue", "Parked": "Outdoor - Row C", "lat": 33.6618, "lon": -84.5295},
-    {"ID": "VH-004", "Model": "BMW X5", "Color": "Black", "Parked": "Outdoor - Row A", "lat": 33.6611, "lon": -84.5301},
-    {"ID": "VH-005", "Model": "Rivian R1T", "Color": "Green", "Parked": "Outdoor - Row D", "lat": 33.6620, "lon": -84.5320},
-]
+# Inventory will be provided by the user via the UI (session state / CSV upload)
 
 GOOG_API_KEY = st.secrets["GOOGLE_API_KEY"]
 
@@ -111,25 +105,95 @@ st.info(ai_explanation(pollen, aqi, decision))
 
 # Map
 st.divider()
-st.subheader("📍 Fleet Map")
-st.map(pd.DataFrame(INVENTORY_DATA), latitude="lat", longitude="lon")
+st.subheader("🧾 Inventory Input")
 
-# Table
-df = pd.DataFrame(INVENTORY_DATA)
+if "inventory" not in st.session_state:
+    st.session_state.inventory = []
 
-def action(row):
-    if color == "RED" and "Outdoor" in row["Parked"]:
-        return "🔴 DO NOT WASH"
-    if color == "YELLOW" and "Outdoor" in row["Parked"]:
-        return "🟡 HOLD"
-    return "🟢 WASH"
+with st.expander("Add single vehicle manually"):
+    with st.form("add_vehicle", clear_on_submit=True):
+        id_in = st.text_input("ID")
+        model_in = st.text_input("Model")
+        color_in = st.text_input("Color")
+        parked_in = st.text_input("Parked (e.g., Outdoor - Row A)")
+        lat_in = st.text_input("Latitude (optional)")
+        lon_in = st.text_input("Longitude (optional)")
+        add_submit = st.form_submit_button("Add to inventory")
+        if add_submit:
+            try:
+                lat_v = float(lat_in) if lat_in.strip() != "" else None
+                lon_v = float(lon_in) if lon_in.strip() != "" else None
+            except Exception:
+                st.error("Latitude and Longitude must be numeric or left blank.")
+                lat_v = None
+                lon_v = None
 
-df["Action"] = df.apply(action, axis=1)
+            item = {
+                "ID": id_in or "",
+                "Model": model_in or "",
+                "Color": color_in or "",
+                "Parked": parked_in or "",
+                "lat": lat_v,
+                "lon": lon_v,
+            }
+            st.session_state.inventory.append(item)
+            st.success("Vehicle added to inventory.")
 
-st.divider()
-st.subheader("📋 Fleet Action Plan")
-st.dataframe(df.drop(columns=["lat", "lon"]), use_container_width=True)
+st.markdown("**Or upload a CSV** (columns: ID,Model,Color,Parked,lat,lon)")
+upload = st.file_uploader("Upload CSV", type=["csv"])
+if upload is not None:
+    try:
+        uploaded_df = pd.read_csv(upload)
+        required = ["ID", "Model", "Color", "Parked", "lat", "lon"]
+        missing = [c for c in required if c not in uploaded_df.columns]
+        if missing:
+            st.error(f"CSV missing columns: {', '.join(missing)}")
+        else:
+            for _, r in uploaded_df.iterrows():
+                lat_v = float(r["lat"]) if pd.notna(r["lat"]) else None
+                lon_v = float(r["lon"]) if pd.notna(r["lon"]) else None
+                st.session_state.inventory.append({
+                    "ID": str(r.get("ID", "")),
+                    "Model": str(r.get("Model", "")),
+                    "Color": str(r.get("Color", "")),
+                    "Parked": str(r.get("Parked", "")),
+                    "lat": lat_v,
+                    "lon": lon_v,
+                })
+            st.success(f"Imported {len(uploaded_df)} rows into inventory.")
+    except Exception as e:
+        st.error(f"Failed to read CSV: {e}")
 
-# Sustainability
-saved = df[df["Action"] != "🟢 WASH"].shape[0] * 40
-st.info(f"💧 Estimated water saved today: **{saved} gallons**")
+inv_df = pd.DataFrame(st.session_state.inventory)
+
+if inv_df.empty:
+    st.info("No inventory provided yet. Add items manually or upload a CSV.")
+else:
+    # Map: show only rows with valid coordinates
+    coords_df = inv_df.dropna(subset=["lat", "lon"]) if not inv_df.empty else pd.DataFrame()
+    st.divider()
+    st.subheader("📍 Fleet Map")
+    if not coords_df.empty:
+        st.map(coords_df, latitude="lat", longitude="lon")
+    else:
+        st.info("No valid coordinates to display on the map.")
+
+    def action(row):
+        parked = row.get("Parked", "") or ""
+        if color == "RED" and "Outdoor" in parked:
+            return "🔴 DO NOT WASH"
+        if color == "YELLOW" and "Outdoor" in parked:
+            return "🟡 HOLD"
+        return "🟢 WASH"
+
+    inv_df["Action"] = inv_df.apply(action, axis=1)
+
+    st.divider()
+    st.subheader("📋 Fleet Action Plan")
+    disp = inv_df.copy()
+    if "lat" in disp.columns and "lon" in disp.columns:
+        disp = disp.drop(columns=[c for c in ["lat", "lon"] if c in disp.columns])
+    st.dataframe(disp, use_container_width=True)
+
+    saved = inv_df[inv_df["Action"] != "🟢 WASH"].shape[0] * 40
+    st.info(f"💧 Estimated water saved today: **{saved} gallons**")
