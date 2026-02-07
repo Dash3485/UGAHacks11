@@ -4,9 +4,6 @@ import requests
 from google import genai
 
 # ---------------- CONFIG ----------------
-LAT = 33.66
-LON = -84.53
-
 POLLEN_LOW = 20
 POLLEN_HIGH = 40
 
@@ -14,22 +11,39 @@ POLLEN_HIGH = 40
 
 GOOG_API_KEY = st.secrets.get("GOOGLE_API_KEY")
 
+# ---------------- GEO ----------------
+@st.cache_data(show_spinner=False)
+def geocode_location(query):
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+        "name": query,
+        "count": 1,
+        "language": "en",
+        "format": "json"
+    }
+
+    r = requests.get(url, params=params, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+
+    if "results" not in data:
+        return None
+
+    result = data["results"][0]
+    return result["latitude"], result["longitude"], result["name"], result.get("country", "")
+
 # ---------------- DATA ----------------
-def get_pollen_data():
+def get_pollen_data(lat, lon):
     url = "https://air-quality-api.open-meteo.com/v1/air-quality"
     params = {
-        "latitude": LAT,
-        "longitude": LON,
+        "latitude": lat,
+        "longitude": lon,
         "current": ["us_aqi", "pm10"],
-        "timezone": "America/New_York"
+        "timezone": "auto"
     }
-    try:
-        r = requests.get(url, params=params, timeout=10)
-        r.raise_for_status()
-        return r.json()
-    except requests.RequestException as e:
-        st.error(f"Weather API error: {e}")
-        return None
+    r = requests.get(url, params=params, timeout=10)
+    r.raise_for_status()
+    return r.json()
 
 # ---------------- LOGIC ----------------
 def compute_strategy(pollen):
@@ -59,7 +73,7 @@ def ai_explanation(pollen, aqi, decision):
         """
 
         response = client.models.generate_content(
-            model="models/gemini-flash-latest",  # ✅ CONFIRMED AVAILABLE
+            model="models/gemini-flash-latest",
             contents=prompt,
         )
 
@@ -72,13 +86,27 @@ def ai_explanation(pollen, aqi, decision):
 st.set_page_config(page_title="Cox PollenGuard", page_icon="🌤️")
 
 st.title("🌤️ Cox Automotive: PollenGuard")
-st.markdown("**Location:** Manheim Atlanta | **Purpose:** Optimize fleet wash scheduling")
+st.markdown("**Purpose:** Optimize fleet wash scheduling across any location")
 
-data = get_pollen_data()
-if not data:
+# 🔍 LOCATION SEARCH
+st.subheader("📍 Location")
+location_query = st.text_input(
+    "Search for a city, address, or ZIP code",
+    value="Manheim Atlanta"
+)
+
+geo = geocode_location(location_query)
+if not geo:
+    st.error("Location not found. Please try another search.")
     st.stop()
 
+LAT, LON, place_name, country = geo
+st.caption(f"Using location: **{place_name}, {country}**")
+
+# 🌦 DATA
+data = get_pollen_data(LAT, LON)
 current = data["current"]
+
 pollen = current.get("pm10", 0)
 aqi = current.get("us_aqi", 0)
 
@@ -88,15 +116,15 @@ if sim_mode:
 
 color, decision, reason = compute_strategy(pollen)
 
-# Metrics
+# 📊 METRICS
 c1, c2, c3 = st.columns(3)
-c1.metric("Pollen (PM10)", pollen)
+c1.metric("Pollen (PM10)", round(pollen, 1))
 c2.metric("Air Quality Index", aqi)
 c3.metric("Decision", decision)
 
 st.divider()
 
-# Decision Display
+# 🚦 DECISION
 if color == "RED":
     st.error(f"## {decision}\n{reason}")
 elif color == "YELLOW":
@@ -104,7 +132,7 @@ elif color == "YELLOW":
 else:
     st.success(f"## {decision}\n{reason}")
 
-# AI Explanation
+# 🤖 AI
 st.subheader("🤖 AI Explanation")
 st.info(ai_explanation(pollen, aqi, decision))
 
