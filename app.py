@@ -112,9 +112,9 @@ def ai_explanation(pollen, aqi, decision):
         return f"AI explanation failed: {e}"
 
 # ---------------- UI ----------------
-st.set_page_config(page_title="Cox PollenGuard", page_icon="🌤️")
+st.set_page_config(page_title="Pollen Guard", page_icon="🌤️")
 
-st.title("🌤️ Cox Automotive: PollenGuard")
+st.title("🌤️ Pollen Guard")
 st.markdown("**Purpose:** Optimize fleet wash scheduling across any location")
 
 # 🔍 LOCATION SEARCH
