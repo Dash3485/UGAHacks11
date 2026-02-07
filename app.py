@@ -54,6 +54,30 @@ def reverse_geocode(lat, lon):
         pass
     return f"{lat}, {lon}"
 
+@st.cache_data(show_spinner=False)
+def geocode_zipcode(zipcode):
+    """Geocode a zipcode to get location name and coordinates."""
+    url = "https://geocoding-api.open-meteo.com/v1/search"
+    params = {
+        "name": zipcode,
+        "count": 1,
+        "language": "en",
+        "format": "json"
+    }
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if "results" in data and len(data["results"]) > 0:
+            result = data["results"][0]
+            city = result.get("name", "Unknown")
+            country = result.get("country", "")
+            location_name = f"{city}, {country}" if country else city
+            return location_name
+    except Exception:
+        pass
+    return None
+
 # ---------------- DATA ----------------
 def get_pollen_data(lat, lon):
     url = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -138,6 +162,7 @@ with st.expander("Add single vehicle manually"):
         model_in = st.text_input("Model")
         color_in = st.text_input("Color")
         parked_in = st.selectbox("Parked", options=["Inside", "Outside"], index=1, key="parked_select")
+        zipcode_in = st.text_input("Zipcode (optional)")
         lat_in = st.text_input("Latitude (optional)")
         lon_in = st.text_input("Longitude (optional)")
         add_submit = st.form_submit_button("Add to inventory")
@@ -155,18 +180,19 @@ with st.expander("Add single vehicle manually"):
                 "Model": model_in or "",
                 "Color": color_in or "",
                 "Parked": parked_in or "",
+                "zipcode": zipcode_in or "",
                 "lat": lat_v,
                 "lon": lon_v,
             }
             st.session_state.inventory.append(item)
             st.success("Vehicle added to inventory.")
 
-st.markdown("**Or upload a CSV** (columns: ID,Model,Color,Parked,lat,lon)")
+st.markdown("**Or upload a CSV** (columns: ID,Model,Color,Parked,zipcode,lat,lon)")
 upload = st.file_uploader("Upload CSV", type=["csv"])
 if upload is not None:
     try:
         uploaded_df = pd.read_csv(upload)
-        required = ["ID", "Model", "Color", "Parked", "lat", "lon"]
+        required = ["ID", "Model", "Color", "Parked", "zipcode", "lat", "lon"]
         missing = [c for c in required if c not in uploaded_df.columns]
         if missing:
             st.error(f"CSV missing columns: {', '.join(missing)}")
@@ -179,6 +205,7 @@ if upload is not None:
                     "Model": str(r.get("Model", "")),
                     "Color": str(r.get("Color", "")),
                     "Parked": str(r.get("Parked", "")),
+                    "zipcode": str(r.get("zipcode", "")),
                     "lat": lat_v,
                     "lon": lon_v,
                 })
@@ -190,8 +217,8 @@ if upload is not None:
 if st.session_state.inventory:
     st.write("**Current Inventory:**")
     preview_df = pd.DataFrame(st.session_state.inventory)
-    if "lat" in preview_df.columns and "lon" in preview_df.columns:
-        preview_df = preview_df.drop(columns=[c for c in ["lat", "lon"] if c in preview_df.columns])
+    if "zipcode" in preview_df.columns and "lat" in preview_df.columns and "lon" in preview_df.columns:
+        preview_df = preview_df.drop(columns=[c for c in ["zipcode", "lat", "lon"] if c in preview_df.columns])
     # Capitalize first letter of first word in each string column
     for col in preview_df.columns:
         if preview_df[col].dtype == 'object':
@@ -270,11 +297,21 @@ if submit_pressed:
             return "🟢 WASH"
 
         def get_location(row):
-            # If both lat and lon are provided, reverse geocode to get location name; otherwise show the default location
-            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
-                return reverse_geocode(row["lat"], row["lon"])
-            else:
-                return place_name
+            # If both lat and lon are provided, reverse geocode; otherwise check zipcode
+            lat_v = row.get("lat")
+            lon_v = row.get("lon")
+            zipcode_v = row.get("zipcode", "")
+            
+            # Both lat and lon: use them (override zipcode)
+            if pd.notna(lat_v) and pd.notna(lon_v):
+                return reverse_geocode(lat_v, lon_v)
+            # Only zipcode or zipcode + one but not both lat/lon: use zipcode
+            elif zipcode_v and zipcode_v.strip():
+                geo_result = geocode_zipcode(zipcode_v)
+                if geo_result:
+                    return geo_result
+            # Default: use place_name from top
+            return place_name
 
         inv_df["Action"] = inv_df.apply(action, axis=1)
         inv_df["Location"] = inv_df.apply(get_location, axis=1)
