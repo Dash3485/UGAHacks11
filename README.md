@@ -1,5 +1,6 @@
 #PollenGuard
-**Names: Collin Cabrera, Dash Duxbury, Turner Lent
+
+**Names: Collin Cabrera, Dash Duxbury, Turner Lent**
 
 **PollenGuard** is a data-driven decision support tool that helps automotive fleet operators optimize vehicle wash scheduling based on real-time air quality and pollen conditions. Built with Streamlit and powered by live environmental data and AI-generated explanations, PollenGuard reduces unnecessary washes, saves water, and improves fleet presentation efficiency.
 
