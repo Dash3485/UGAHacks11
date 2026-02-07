@@ -1,11 +1,11 @@
-#  Cox Automotive: PollenGuard
+# PollenGuard
 
 **PollenGuard** is a data-driven decision support tool that helps automotive fleet operators optimize vehicle wash scheduling based on real-time air quality and pollen conditions. Built with Streamlit and powered by live environmental data and AI-generated explanations, PollenGuard reduces unnecessary washes, saves water, and improves fleet presentation efficiency.
 
 ---
 
 ##  Problem
-Fleet operators frequently wash vehicles on fixed schedules, even when high pollen or poor air quality will immediately undo the cleaning. This leads to:
+Fleet operators frequently wash vehicles on fixed schedules, even when there is a high pollen count or poor air quality, this will immediately undo the cleaning. This leads to:
 - Wasted water and labor
 - Increased operational costs
 - Inefficient sustainability practices
@@ -13,7 +13,7 @@ Fleet operators frequently wash vehicles on fixed schedules, even when high poll
 ---
 
 ##  Solution
-PollenGuard dynamically evaluates local pollen (PM10) and air quality data to determine whether fleets should:
+PollenGuard  evaluates local pollen (PM10) and air quality data to determine whether fleets should:
 - **WASH ALL**
 - **LIMITED WASH**
 - **HOLD WASH**
@@ -23,7 +23,7 @@ An integrated AI explanation layer translates environmental data into clear, non
 ---
 
 ##  Key Features
--  **Location-based search** (city, address, or ZIP code)
+-  **Location-based search** (city, address, zipcode)
 -  **Live air quality & pollen data** via Open-Meteo API
 -  **AI-generated decision explanations** using Google Gemini
 -  **Interactive fleet map visualization**
