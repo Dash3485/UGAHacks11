@@ -202,6 +202,12 @@ if st.session_state.inventory:
 st.divider()
 submit_pressed = st.button("Generate Wash Recommendation", type="primary")
 
+# Simulate pollen checkbox (outside submit block so it persists)
+if "sim_mode" not in st.session_state:
+    st.session_state.sim_mode = False
+sim_mode = st.checkbox("⚠️ Simulate High Pollen (Demo)", value=st.session_state.sim_mode)
+st.session_state.sim_mode = sim_mode
+
 if submit_pressed:
     #  DATA
     data = get_pollen_data(LAT, LON)
@@ -210,8 +216,7 @@ if submit_pressed:
     pollen = current.get("pm10", 0)
     aqi = current.get("us_aqi", 0)
 
-    sim_mode = st.checkbox("⚠️ Simulate High Pollen (Demo)")
-    if sim_mode:
+    if st.session_state.sim_mode:
         pollen = 85
 
     color, decision, reason = compute_strategy(pollen)
@@ -263,9 +268,23 @@ if submit_pressed:
 
         def action(row):
             parked = row.get("Parked", "") or ""
-            if color == "RED" and parked == "Outside":
+            
+            # Determine pollen for this vehicle
+            vehicle_pollen = pollen
+            if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
+                # Vehicle has custom coordinates - fetch actual pollen data (not simulated)
+                try:
+                    vehicle_data = get_pollen_data(row["lat"], row["lon"])
+                    vehicle_pollen = vehicle_data["current"].get("pm10", pollen)
+                except Exception:
+                    vehicle_pollen = pollen
+            
+            # Compute action based on vehicle's pollen level
+            vehicle_color, _, _ = compute_strategy(vehicle_pollen)
+            
+            if vehicle_color == "RED" and parked == "Outside":
                 return "🔴 DO NOT WASH"
-            if color == "YELLOW" and parked == "Outside":
+            if vehicle_color == "YELLOW" and parked == "Outside":
                 return "🟡 HOLD"
             return "🟢 WASH"
 
