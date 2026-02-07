@@ -171,27 +171,31 @@ with st.expander("Add single vehicle manually"):
 st.markdown("**Or upload a CSV** (columns: Make,Model,Color,Parked,lat,lon)")
 upload = st.file_uploader("Upload CSV", type=["csv"])
 if upload is not None:
-    try:
-        uploaded_df = pd.read_csv(upload)
-        required = ["Make", "Model", "Color", "Parked", "lat", "lon"]
-        missing = [c for c in required if c not in uploaded_df.columns]
-        if missing:
-            st.error(f"CSV missing columns: {', '.join(missing)}")
-        else:
-            for _, r in uploaded_df.iterrows():
-                lat_v = float(r["lat"]) if pd.notna(r["lat"]) else None
-                lon_v = float(r["lon"]) if pd.notna(r["lon"]) else None
-                st.session_state.inventory.append({
-                    "Make": str(r.get("Make", "")),
-                    "Model": str(r.get("Model", "")),
-                    "Color": str(r.get("Color", "")),
-                    "Parked": str(r.get("Parked", "")),
-                    "lat": lat_v,
-                    "lon": lon_v,
-                })
-            st.success(f"Imported {len(uploaded_df)} rows into inventory.")
-    except Exception as e:
-        st.error(f"Failed to read CSV: {e}")
+    # Prevent re-processing the same uploaded file on reruns (e.g., checkbox toggles)
+    processed_key = f"csv_processed_{upload.name}"
+    if not st.session_state.get(processed_key, False):
+        try:
+            uploaded_df = pd.read_csv(upload)
+            required = ["Make", "Model", "Color", "Parked", "lat", "lon"]
+            missing = [c for c in required if c not in uploaded_df.columns]
+            if missing:
+                st.error(f"CSV missing columns: {', '.join(missing)}")
+            else:
+                for _, r in uploaded_df.iterrows():
+                    lat_v = float(r["lat"]) if pd.notna(r["lat"]) else None
+                    lon_v = float(r["lon"]) if pd.notna(r["lon"]) else None
+                    st.session_state.inventory.append({
+                        "Make": str(r.get("Make", "")),
+                        "Model": str(r.get("Model", "")),
+                        "Color": str(r.get("Color", "")),
+                        "Parked": str(r.get("Parked", "")),
+                        "lat": lat_v,
+                        "lon": lon_v,
+                    })
+                st.success(f"Imported {len(uploaded_df)} rows into inventory.")
+                st.session_state[processed_key] = True
+        except Exception as e:
+            st.error(f"Failed to read CSV: {e}")
 
 # Show current inventory before submit
 if st.session_state.inventory:
