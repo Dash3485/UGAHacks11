@@ -84,14 +84,21 @@ def ai_explanation(pollen, aqi, decision):
         client = genai.Client(api_key=GOOG_API_KEY)
 
         prompt = f"""
-        You are a fleet operations analyst.
-        Explain this decision clearly for a non-technical manager.
+        You are a fleet operations analyst specializing in vehicle maintenance optimization.
+        Explain the fleet wash recommendation for today based on environmental conditions.
+        
+        For PARTIAL WASH decisions: Vehicles in areas with high pollen levels are being held to avoid immediate re-soiling, while vehicles in lower pollen areas can be safely washed.
+        For WASH ALL decisions: All locations have low enough pollen for safe washing without immediate re-soiling risk.
+        For HOLD WASH decisions: High pollen levels across all vehicle locations make washing inefficient today.
 
         Pollen (PM10): {pollen}
         Air Quality Index: {aqi}
-        Decision: {decision}
+        Fleet Decision: {decision}
 
-        Respond in 2–3 sentences.
+        Provide a concise business-focused explanation (2–3 sentences) that helps managers understand:
+        - The environmental conditions and their impact on vehicle maintenance
+        - Why this washing decision makes sense (cost savings, vehicle protection, pollen-based efficiency)
+        - How location-specific pollen levels affect individual vehicle wash decisions
         """
 
         response = client.models.generate_content(
@@ -268,7 +275,7 @@ if submit_pressed:
             color = "ORANGE"
             wash_list = inv_df[inv_df["Action"] == "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
             hold_list = inv_df[inv_df["Action"] != "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
-            decision = "MIXED FLEET"
+            decision = "PARTIAL WASH"
             reason = f"Wash: {', '.join(wash_list)}\n\nHold/Do Not Wash: {', '.join(hold_list)}"
         elif wash_vehicles == total_vehicles:
             # All vehicles can wash
