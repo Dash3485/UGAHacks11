@@ -201,7 +201,7 @@ if upload is not None:
                 lat_v = float(r["lat"]) if pd.notna(r["lat"]) else None
                 lon_v = float(r["lon"]) if pd.notna(r["lon"]) else None
                 st.session_state.inventory.append({
-                    "ID": str(r.get("ID", "")),
+                    "Make": str(r.get("Make", "")),
                     "Model": str(r.get("Model", "")),
                     "Color": str(r.get("Color", "")),
                     "Parked": str(r.get("Parked", "")),
