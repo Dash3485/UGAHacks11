@@ -339,26 +339,33 @@ if submit_pressed:
         
         # Add removal buttons
         st.write("**Manage Vehicles:**")
-        cols = st.columns([2, 1, 1, 1, 1, 1, 1])
+        # Show the compact columns for main attributes and the remove button.
+        # Location is shown on a separate full-width line below each row so
+        # long coordinate strings don't force other columns to shrink.
+        cols = st.columns([2, 1, 1, 1, 1, 1])
         cols[0].write("**Make**")
         cols[1].write("**Model**")
         cols[2].write("**Color**")
         cols[3].write("**Parked**")
         cols[4].write("**Action**")
-        cols[5].write("**Location**")
-        cols[6].write("**Remove**")
-        
+        cols[5].write("**Remove**")
+
         for idx, (i, row) in enumerate(disp.iterrows()):
-            cols = st.columns([2, 1, 1, 1, 1, 1, 1])
+            cols = st.columns([2, 1, 1, 1, 1, 1])
             cols[0].write(str(row.get("Make", "")).capitalize())
             cols[1].write(str(row.get("Model", "")).capitalize())
             cols[2].write(str(row.get("Color", "")).capitalize())
             cols[3].write(str(row.get("Parked", "")).capitalize())
             cols[4].write(row.get("Action", ""))
-            cols[5].write(str(row.get("Location", "")))
-            if cols[6].button("❌", key=f"remove_{idx}"):
+            if cols[5].button("❌", key=f"remove_{idx}"):
                 st.session_state.inventory.pop(i)
                 st.rerun()
+
+            # Location on its own full-width row for readability
+            loc_row = st.columns([1])
+            loc_row[0].write(f"**Location:** {str(row.get('Location', ''))}")
+            # Divider between vehicles to keep the list visually separated
+            st.divider()
 
         saved = inv_df[inv_df["Action"] != "🟢 WASH"].shape[0] * 40
         st.info(f"💧 Estimated water saved today: **{saved} gallons**")
