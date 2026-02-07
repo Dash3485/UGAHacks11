@@ -115,7 +115,7 @@ def ai_explanation(pollen, aqi, decision):
 st.set_page_config(page_title="Pollen Guard", page_icon="🌤️")
 
 st.title("🌤️ Pollen Guard")
-st.markdown("**Purpose:** Optimize fleet wash scheduling across any location")
+st.markdown("Optimize fleet wash scheduling across any location")
 
 # 🔍 LOCATION SEARCH
 st.subheader("📍 Location")
@@ -134,7 +134,7 @@ st.caption(f"Using location: **{place_name}, {country}**")
 
 # INVENTORY INPUT SECTION
 st.divider()
-st.subheader("🧾 Inventory Input")
+st.subheader("Inventory Input")
 
 if "inventory" not in st.session_state:
     st.session_state.inventory = []
@@ -323,7 +323,7 @@ if submit_pressed:
             st.success(f"## {decision}\n{reason}")
 
         #  AI
-        st.subheader("🤖 AI Explanation")
+        st.subheader("AI Explanation")
         st.info(ai_explanation(pollen, aqi, decision))
 
         st.divider()
@@ -346,7 +346,7 @@ if submit_pressed:
         else:
             st.info("No coordinates to display on the map.")
 
-        st.subheader("📋 Fleet Action Plan")
+        st.subheader("Fleet Action Plan")
         disp = inv_df.copy()
         if "lat" in disp.columns and "lon" in disp.columns:
             disp = disp.drop(columns=[c for c in ["lat", "lon"] if c in disp.columns])
