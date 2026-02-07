@@ -277,8 +277,22 @@ if submit_pressed:
         if wash_vehicles > 0 and hold_vehicles > 0:
             # Mixed state: some wash, some hold
             color = "ORANGE"
-            wash_list = inv_df[inv_df["Action"] == "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
-            hold_list = inv_df[inv_df["Action"] != "🟢 WASH"]["Make"].apply(lambda x: x.capitalize()).tolist()
+            # Use Make + Model for clearer identification in PARTIAL WASH descriptions
+            wash_df = inv_df[inv_df["Action"] == "🟢 WASH"]
+            hold_df = inv_df[inv_df["Action"] != "🟢 WASH"]
+
+            def fmt_make_model(r):
+                make = str(r.get("Make", "")).strip()
+                model = str(r.get("Model", "")).strip()
+                # Capitalize each part for readability
+                make = make.capitalize() if make else ""
+                model = model.capitalize() if model else ""
+                if make and model:
+                    return f"{make} {model}"
+                return make or model or ""
+
+            wash_list = wash_df.apply(fmt_make_model, axis=1).tolist()
+            hold_list = hold_df.apply(fmt_make_model, axis=1).tolist()
             decision = "PARTIAL WASH"
             reason = f"Wash: {', '.join(wash_list)}\n\nHold/Do Not Wash: {', '.join(hold_list)}"
         elif wash_vehicles == total_vehicles:
