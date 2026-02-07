@@ -32,6 +32,28 @@ def geocode_location(query):
     result = data["results"][0]
     return result["latitude"], result["longitude"], result["name"], result.get("country", "")
 
+@st.cache_data(show_spinner=False)
+def reverse_geocode(lat, lon):
+    """Reverse geocode coordinates to get location name."""
+    url = "https://geocoding-api.open-meteo.com/v1/reverse"
+    params = {
+        "latitude": lat,
+        "longitude": lon,
+        "language": "en"
+    }
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+        if "results" in data and len(data["results"]) > 0:
+            result = data["results"][0]
+            city = result.get("name", "Unknown")
+            country = result.get("country", "")
+            return f"{city}, {country}" if country else city
+    except Exception:
+        pass
+    return "Custom Location"
+
 # ---------------- DATA ----------------
 def get_pollen_data(lat, lon):
     url = "https://air-quality-api.open-meteo.com/v1/air-quality"
@@ -148,7 +170,7 @@ with st.expander("Add single vehicle manually"):
         id_in = st.text_input("ID")
         model_in = st.text_input("Model")
         color_in = st.text_input("Color")
-        parked_in = st.text_input("Parked (e.g., Outdoor - Row A)")
+        parked_in = st.selectbox("Parked", options=["Inside", "Outside"], key="parked_select")
         lat_in = st.text_input("Latitude (optional)")
         lon_in = st.text_input("Longitude (optional)")
         add_submit = st.form_submit_button("Add to inventory")
@@ -223,16 +245,16 @@ else:
 
     def action(row):
         parked = row.get("Parked", "") or ""
-        if color == "RED" and "Outdoor" in parked:
+        if color == "RED" and parked == "Outside":
             return "🔴 DO NOT WASH"
-        if color == "YELLOW" and "Outdoor" in parked:
+        if color == "YELLOW" and parked == "Outside":
             return "🟡 HOLD"
         return "🟢 WASH"
 
     def get_location(row):
-        # If both lat and lon are provided, show "Custom"; otherwise show the default location
+        # If both lat and lon are provided, reverse geocode to get location name; otherwise show the default location
         if pd.notna(row.get("lat")) and pd.notna(row.get("lon")):
-            return "Custom"
+            return reverse_geocode(row["lat"], row["lon"])
         else:
             return place_name
 
@@ -244,7 +266,29 @@ else:
     disp = inv_df.copy()
     if "lat" in disp.columns and "lon" in disp.columns:
         disp = disp.drop(columns=[c for c in ["lat", "lon"] if c in disp.columns])
-    st.dataframe(disp, use_container_width=True)
+    
+    # Add removal buttons
+    st.write("**Manage Vehicles:**")
+    cols = st.columns([2, 1, 1, 1, 1, 1, 1])
+    cols[0].write("**ID**")
+    cols[1].write("**Model**")
+    cols[2].write("**Color**")
+    cols[3].write("**Parked**")
+    cols[4].write("**Action**")
+    cols[5].write("**Location**")
+    cols[6].write("**Remove**")
+    
+    for idx, (i, row) in enumerate(disp.iterrows()):
+        cols = st.columns([2, 1, 1, 1, 1, 1, 1])
+        cols[0].write(row.get("ID", ""))
+        cols[1].write(row.get("Model", ""))
+        cols[2].write(row.get("Color", ""))
+        cols[3].write(row.get("Parked", ""))
+        cols[4].write(row.get("Action", ""))
+        cols[5].write(row.get("Location", ""))
+        if cols[6].button("❌", key=f"remove_{idx}"):
+            st.session_state.inventory.pop(i)
+            st.rerun()
 
     saved = inv_df[inv_df["Action"] != "🟢 WASH"].shape[0] * 40
     st.info(f"💧 Estimated water saved today: **{saved} gallons**")
