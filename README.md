@@ -1,4 +1,6 @@
-# PollenGuard
+##  PollenGuard
+
+**Names: Collin Cabrera, Dash Duxbury, Turner Lent**
 
 **PollenGuard** is a data-driven decision support tool that helps automotive fleet operators optimize vehicle wash scheduling based on real-time air quality and pollen conditions. Built with Streamlit and powered by live environmental data and AI-generated explanations, PollenGuard reduces unnecessary washes, saves water, and improves fleet presentation efficiency.
 
@@ -42,12 +44,16 @@ An integrated AI explanation layer translates environmental data into clear, non
 
 ---
 
-##  Tech Stack
+##  Tools used
 - **Frontend / App Framework:** Streamlit
-- **Data:** Open-Meteo Air Quality API
+- **Data:** Open-Meteo Air Quality API, Pandas
 - **AI:** Google Gemini (`gemini-flash-latest`)
 - **Mapping:** Streamlit map visualization
 - **Language:** Python 3.9+
+
+--- 
+##  Problems that group ran into 
+A problem that we ran into was having the AI give reasonable advice for.
 
 ---
 
