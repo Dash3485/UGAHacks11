@@ -53,10 +53,10 @@ An integrated AI explanation layer translates environmental data into clear, non
 
 --- 
 ##  Problems that group ran into 
-A problem that we ran into was it was our first time working collaboratively on a shared git hub repository. We stuggled at first with pushing at the same time and with figuring out how to distribute work equally and efficiently. After some trial and error and online tutorials we over came the issue and ended up working more cohesvily as a group. Another issue we ran into as a group was the front end of our project. We wanted a simple and streamline experience for the user but werent sure what we should use. We settled on streamline as it seemed to fulfill what we were looking for.
+-** A problem that we ran into was it was our first time working collaboratively on a shared git hub repository. We stuggled at first with pushing at the same time and with figuring out how to distribute work equally and efficiently. After some trial and error and online tutorials we over came the issue and ended up working more cohesvily as a group. Another issue we ran into as a group was the front end of our project. We wanted a simple and streamline experience for the user but werent sure what we should use. We settled on streamline as it seemed to fulfill what we were looking for.
 ---
 
--** to run project you need to plug in own gemini api key
+## To run project you need to plug in own gemini api key
 
 ###  Clone the repository
 ```bash
